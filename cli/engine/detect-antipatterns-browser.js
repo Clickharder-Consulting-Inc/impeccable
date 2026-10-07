@@ -7471,9 +7471,20 @@ if (IS_BROWSER) {
     return el.offsetWidth === 0 && el.offsetHeight === 0;
   }
 
+  // The element's own visible text, trimmed to a searchable excerpt — so a
+  // consumer can tell a person WHERE a finding is, not just which file.
+  function textExcerpt(el) {
+    try {
+      const own = [...(el.childNodes || [])].filter(n => n.nodeType === 3).map(n => n.textContent).join(' ');
+      const t = (own.trim() || (el.innerText || el.textContent || '')).replace(/\s+/g, ' ').trim();
+      return t.length > 120 ? t.slice(0, 117) + '…' : t;
+    } catch { return ''; }
+  }
+
   function serializeFindings(allFindings) {
     return allFindings.map(({ el, findings }) => ({
       selector: generateSelector(el),
+      text: (el === document.body || el === document.documentElement) ? '' : textExcerpt(el),
       tagName: el.tagName?.toLowerCase() || 'unknown',
       rect: (el !== document.body && el !== document.documentElement && el.getBoundingClientRect)
         ? el.getBoundingClientRect().toJSON() : null,

@@ -113,7 +113,7 @@ async function runVisualContrastFallback(page, serializedGroups, options, profil
       }, { maxCandidates, scrollOffscreen });
       return browserAnalyses
         .filter(result => result.finding && !existingLowContrastSelectors.has(result.selector))
-        .map(result => result.finding);
+        .map(result => ({ ...result.finding, ...(result.selector ? { selector: result.selector } : {}) }));
     });
     findings.push(...browserFindings);
   }
@@ -151,7 +151,7 @@ async function runVisualContrastFallback(page, serializedGroups, options, profil
       target,
     }, async () => {
       const finding = await captureVisualContrastCandidate(page, candidate, viewport);
-      return finding ? [finding] : [];
+      return finding ? [{ ...finding, ...(candidate.selector ? { selector: candidate.selector } : {}) }] : [];
     });
     findings.push(...result);
   }
@@ -284,8 +284,13 @@ async function detectUrl(url, options = {}) {
         if (!window.impeccableDetect) return [];
         return window.impeccableDetect({ decorate: false, serialize: true });
       });
-      return serializedGroups.flatMap(({ findings }) =>
-        findings.map(f => ({ id: f.type, snippet: f.detail, ignoreValue: f.ignoreValue || '', severity: f.severity || '' }))
+      return serializedGroups.flatMap(({ selector, text, isPageLevel, findings }) =>
+        findings.map(f => ({
+          id: f.type, snippet: f.detail, ignoreValue: f.ignoreValue || '', severity: f.severity || '',
+          // Element identity rides along so consumers can point at the finding.
+          ...(selector && !isPageLevel ? { selector } : {}),
+          ...(text ? { text } : {}),
+        }))
       );
     });
     // Content invisible at rest: reveal sweep, then re-measure. Runs after
@@ -329,6 +334,8 @@ async function detectUrl(url, options = {}) {
   return results.map(f => {
     const item = finding(f.id, url, f.snippet);
     if (f.ignoreValue) item.ignoreValue = f.ignoreValue;
+    if (f.selector) item.selector = f.selector;
+    if (f.text) item.text = f.text;
     // Per-finding severity promotion (e.g. hero-region pulsing dot)
     // overrides the registry default carried by finding().
     if (f.severity && f.severity !== item.severity) item.severity = f.severity;
